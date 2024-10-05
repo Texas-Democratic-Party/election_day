@@ -74,7 +74,9 @@ def submit_election(driver, homepage, election):
     submit_button.click()
     return driver
 
-def get_selected_ev_date_dropdown(driver, dropdown_name = 'Official Early Voting Turnout by Date'):
+def get_selected_ev_date_dropdown(driver, officialness):
+    dropdown_name = f"{officialness} Early Voting Turnout by Date"
+    print(f"Looking for dropdown with text: {dropdown_name}")
     wait = WebDriverWait(driver, 2)
     dropdown_container = wait.until(EC.visibility_of_element_located((By.XPATH, f"//div[contains(text(), '{dropdown_name}')]")))
     dropdown_element = dropdown_container.find_element(By.XPATH, "./following-sibling::div//select[@id='selectedDate']")
@@ -94,12 +96,15 @@ def get_report_dates(driver, origin_url, election):
 if __name__ == "__main__":
     # PARAMS (configurable)
     ELECTION = '2024 NOVEMBER 5TH GENERAL ELECTION'
+    OFFICIAL_RESULTS_AVAILABLE = False  
 
-    # Constants
+    # Constants and derived params
     GBQ_DEST_DATASET = "evav_processing_2024"
-    GBQ_DEST_TABLENAME = ELECTION.replace(" ", "_").lower()
     ORIGIN_URL = "https://earlyvoting.texas-election.com/Elections/getElectionDetails.do"
     CSV_DL_DIR = "downloaded_files"
+
+    GBQ_DEST_TABLENAME = ELECTION.replace(" ", "_").lower()
+    OFFICIALNESS = "Official" if OFFICIAL_RESULTS_AVAILABLE else "Unofficial"
 
 
     # initialize the driver (mainly to ensure CSVs we download stay in this project folder)    
@@ -124,7 +129,7 @@ if __name__ == "__main__":
         driver = submit_election(driver, ORIGIN_URL, ELECTION)
 
         # Select current date from dropdown
-        select = get_selected_ev_date_dropdown(driver)
+        select = get_selected_ev_date_dropdown(driver, OFFICIALNESS)
         select.select_by_visible_text(d)
 
         # Click the submit button for fetching table of EV detailed data
