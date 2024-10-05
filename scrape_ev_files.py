@@ -83,12 +83,12 @@ def get_selected_ev_date_dropdown(driver, officialness):
     select = Select(dropdown_element)
     return select
 
-def get_report_dates(driver, origin_url, election):    
+def get_report_dates(driver, origin_url, election, officialness):    
     # navigate to the election page to see dates of eligible reports
     driver = submit_election(driver, origin_url, election)
 
     # Locate the parent div by checking for unique text within, then find the dropdown within this div
-    select = get_selected_ev_date_dropdown(driver)
+    select = get_selected_ev_date_dropdown(driver, officialness)
     dates = [option.text.strip() for option in select.options][1:]  # w/o 'Select Early Voting Date'
     return dates
 
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             os.remove(fpath)
 
     # Get report-dates we'll need to iterate through
-    report_dates = get_report_dates(driver, ORIGIN_URL, ELECTION)
+    report_dates = get_report_dates(driver, ORIGIN_URL, ELECTION, OFFICIALNESS)
 
     num_csvs_downloaded = 0  # tracking total downloaded csvs lets us confirm each is downloaded
     final_df = pd.DataFrame()
