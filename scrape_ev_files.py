@@ -139,7 +139,7 @@ if __name__ == "__main__":
         # Click the "Generate Report" button to download as a csv
         # ...unless we got a pop-up saying there's no data for this date
         print(f"Executing downloadReport() button / js script")
-        DOWNLOAD_WAIT_SECONDS = 5
+        DOWNLOAD_WAIT_SECONDS = 20
         try:
             driver.execute_script("downloadReport('');")
             WebDriverWait(driver, DOWNLOAD_WAIT_SECONDS).until(EC.alert_is_present())
