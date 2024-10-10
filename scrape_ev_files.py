@@ -1,3 +1,4 @@
+import argparse
 import os
 import pandas as pd
 import pyarrow as pa
@@ -92,44 +93,28 @@ def get_report_dates(driver, origin_url, election, officialness):
     dates = [option.text.strip() for option in select.options][1:]  # w/o 'Select Early Voting Date'
     return dates
 
-
-if __name__ == "__main__":
-    # PARAMS (configurable)
-    ELECTION = '2024 NOVEMBER 5TH GENERAL ELECTION'
-    OFFICIAL_RESULTS_AVAILABLE = False  
-
-    # Constants and derived params
-    GBQ_DEST_DATASET = "evav_processing_2024"
-    ORIGIN_URL = "https://earlyvoting.texas-election.com/Elections/getElectionDetails.do"
-    CSV_DL_DIR = "downloaded_files"
-
-    GBQ_DEST_TABLENAME = ELECTION.replace(" ", "_").lower()
-    OFFICIALNESS = "Official" if OFFICIAL_RESULTS_AVAILABLE else "Unofficial"
-
-
-    # initialize the driver (mainly to ensure CSVs we download stay in this project folder)    
-    driver = init_driver(local_download_path=CSV_DL_DIR)
+def get_ev_turnout_data(driver, csv_dl_dir, origin_url, election, officialness):
 
     # clear local downloads folder before beginning 
     # (later we use count of files in this folder to determine when a new file has finished 
     #  downloading and is ready to be renamed; so we need to start with a clean slate)
-    for f in os.listdir(CSV_DL_DIR):
-        fpath = os.path.join(CSV_DL_DIR, f)
+    for f in os.listdir(csv_dl_dir):
+        fpath = os.path.join(csv_dl_dir, f)
         if os.path.isfile(fpath):
             os.remove(fpath)
 
     # Get report-dates we'll need to iterate through
-    report_dates = get_report_dates(driver, ORIGIN_URL, ELECTION, OFFICIALNESS)
+    report_dates = get_report_dates(driver, origin_url, election, officialness)
 
     num_csvs_downloaded = 0  # tracking total downloaded csvs lets us confirm each is downloaded
     final_df = pd.DataFrame()
     for d in tqdm(report_dates):
         print(f"Downloading report for {d}")
         # navigate back to the main Early Voter page for this election 
-        driver = submit_election(driver, ORIGIN_URL, ELECTION)
+        driver = submit_election(driver, origin_url, election)
 
         # Select current date from dropdown
-        select = get_selected_ev_date_dropdown(driver, OFFICIALNESS)
+        select = get_selected_ev_date_dropdown(driver, officialness)
         select.select_by_visible_text(d)
 
         # Click the submit button for fetching table of EV detailed data
@@ -151,23 +136,77 @@ if __name__ == "__main__":
 
             # Wait for the download to complete
             num_csvs_downloaded += 1
-            while len([f for f in os.listdir(CSV_DL_DIR) if f.endswith('.csv')]) < num_csvs_downloaded:
+            while len([f for f in os.listdir(csv_dl_dir) if f.endswith('.csv')]) < num_csvs_downloaded:
                 print(f"waiting for {d} to download...")
                 time.sleep(1)
 
             # read that latest-downloaded csv into a df; append to results
-            csv_files = [f for f in os.listdir(CSV_DL_DIR) if f.endswith('.csv')]
-            latest_file = max(csv_files, key=lambda x: os.path.getctime(os.path.join(CSV_DL_DIR, x)))
+            csv_files = [f for f in os.listdir(csv_dl_dir) if f.endswith('.csv')]
+            latest_file = max(csv_files, key=lambda x: os.path.getctime(os.path.join(csv_dl_dir, x)))
 
             # not including all columns here; just the ones that seem like they might get mistaken for ints (but shouldn't be)
             dtypes = {c:'string' for c in ['ID_VOTER', 'PRECINCT', 'POLL PLACE ID']}
-            df = pd.read_csv(os.path.join(CSV_DL_DIR, latest_file), dtype_backend='pyarrow', dtype=dtypes)            
+            df = pd.read_csv(os.path.join(csv_dl_dir, latest_file), dtype_backend='pyarrow', dtype=dtypes)            
             df['filedate'] = datetime.strptime(d, "%B %d,%Y")
+
             final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
 
     # unindent two levels; out of the try/except block and out of the for loop of dates
-    print(f"uploading to GBQ: {GBQ_DEST_DATASET}.{GBQ_DEST_TABLENAME}")
-    to_gbq(final_df, 
+    return final_df
+
+
+def get_poll_places_last_updated(driver, origin_url, election):
+    driver = submit_election(driver, origin_url, election)
+    
+    DOWNLOAD_WAIT_SECONDS = 20
+    try:
+        dt_element = WebDriverWait(driver, DOWNLOAD_WAIT_SECONDS).until(
+                EC.presence_of_element_located((By.ID, "ppLastUpdatedVal"))
+            )
+    except Exception as e:
+        print(f"Failed to find html element with ID: 'ppLastUpdatedVal' within {DOWNLOAD_WAIT_SECONDS} seconds")
+        raise e
+
+    return dt_element.text
+
+if __name__ == "__main__":
+    # CLI params:
+    parser = argparse.ArgumentParser(description="Early Voting Scraper",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--mode', type=str, default='turnout_data', 
+                        choices=['turnout_data', 'polling_places_last_updated'],
+                        help="Scraping mode: 'turnout_data' or 'polling_places_last_updated'")
+    parser.add_argument('--election', type=str, default='2024 NOVEMBER 5TH GENERAL ELECTION')
+
+    args = parser.parse_args()
+
+
+    # Other params
+    OFFICIAL_RESULTS_AVAILABLE = False # should become True for past elections
+
+    # Constants and derived params
+    GBQ_DEST_DATASET = "evav_processing_2024"
+    ORIGIN_URL = "https://earlyvoting.texas-election.com/Elections/getElectionDetails.do"
+    CSV_DL_DIR = "downloaded_files"
+
+    OFFICIALNESS = "Official" if OFFICIAL_RESULTS_AVAILABLE else "Unofficial"
+
+
+    # initialize the driver (mainly to ensure CSVs we download stay in this project folder)    
+    driver = init_driver(local_download_path=CSV_DL_DIR)
+
+    # Scrape what we want, based on param `mode`
+    if args.mode == 'turnout_data':
+        df = get_ev_turnout_data(driver, CSV_DL_DIR, ORIGIN_URL, args.election, OFFICIALNESS) 
+    else: 
+        last_updated_time = get_poll_places_last_updated(driver, ORIGIN_URL, args.election)
+        df = pd.DataFrame({'ppLastUpdatedVal': [last_updated_time]})
+
+    # Upload to GBQ
+    bq_tbl_suffix = "" if args.mode == 'turnout_data' else "_pp_last_updated"
+    GBQ_DEST_TABLENAME = args.election.replace(" ", "_").lower() + bq_tbl_suffix
+    print(f"uploading to GBQ: {GBQ_DEST_DATASET}.{GBQ_DEST_TABLENAME}...\n{df.head()}")
+    to_gbq(df, 
             f"{GBQ_DEST_DATASET}.{GBQ_DEST_TABLENAME}", 
             if_exists='replace',
             project_id='demstxsp')
