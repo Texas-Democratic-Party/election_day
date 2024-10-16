@@ -158,7 +158,7 @@ def get_ev_turnout_data(driver, csv_dl_dir, origin_url, election, officialness):
 def get_poll_places_last_updated(driver, origin_url, election):
     driver = submit_election(driver, origin_url, election)
     
-    DOWNLOAD_WAIT_SECONDS = 20
+    DOWNLOAD_WAIT_SECONDS = 60
     try:
         dt_element = WebDriverWait(driver, DOWNLOAD_WAIT_SECONDS).until(
                 EC.presence_of_element_located((By.ID, "ppLastUpdatedVal"))
