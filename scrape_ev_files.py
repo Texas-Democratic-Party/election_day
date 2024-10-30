@@ -182,7 +182,8 @@ if __name__ == "__main__":
 
 
     # Other params
-    OFFICIAL_RESULTS_AVAILABLE = False # should become True for past elections
+    OFFICIAL_RESULTS_AVAILABLE = True # should become True for past elections
+        #the SOS seemed to change this and are currently marked official incorrectly. We likely need to chnage this to false again tomorrow morning.
 
     # Constants and derived params
     GBQ_DEST_DATASET = "evav_processing_2024"
