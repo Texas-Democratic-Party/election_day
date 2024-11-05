@@ -76,7 +76,7 @@ def submit_election(driver, homepage, election):
     return driver
 
 def get_selected_ev_date_dropdown(driver, officialness):
-    dropdown_name = f"{officialness} Early Voting Turnout by Date"
+    dropdown_name = f"{officialness} Election Day Turnout by County"
     print(f"Looking for dropdown with text: {dropdown_name}")
     wait = WebDriverWait(driver, 2)
     dropdown_container = wait.until(EC.visibility_of_element_located((By.XPATH, f"//div[contains(text(), '{dropdown_name}')]")))
@@ -186,7 +186,7 @@ if __name__ == "__main__":
         #the SOS seemed to change this and are currently marked official incorrectly. We likely need to chnage this to false again tomorrow morning.
 
     # Constants and derived params
-    GBQ_DEST_DATASET = "evav_processing_2024"
+    GBQ_DEST_DATASET = "election_day_processing_2024"
     ORIGIN_URL = "https://earlyvoting.texas-election.com/Elections/getElectionDetails.do"
     CSV_DL_DIR = "downloaded_files"
 
