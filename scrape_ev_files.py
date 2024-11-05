@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import pyarrow as pa
 import time
+import zipfile
 
 from datetime import datetime
 from glob import glob
@@ -136,24 +137,31 @@ def get_ev_turnout_data(driver, csv_dl_dir, origin_url, election, officialness):
 
             # Wait for the download to complete
             num_csvs_downloaded += 1
-            while len([f for f in os.listdir(csv_dl_dir) if f.endswith('.csv')]) < num_csvs_downloaded:
+            while len([f for f in os.listdir(csv_dl_dir) if f.endswith('.zip')]) < num_csvs_downloaded:
                 print(f"waiting for {d} to download...")
                 time.sleep(1)
-
-            # read that latest-downloaded csv into a df; append to results
-            csv_files = [f for f in os.listdir(csv_dl_dir) if f.endswith('.csv')]
-            latest_file = max(csv_files, key=lambda x: os.path.getctime(os.path.join(csv_dl_dir, x)))
             
-            # check if csv is empty and skip if it is
-            if os.path.getsize(os.path.join(csv_dl_dir, latest_file)) > 0:
-               # not including all columns here; just the ones that seem like they might get mistaken for ints (but shouldn't be)
-               dtypes = {c:'string' for c in ['ID_VOTER', 'PRECINCT', 'POLL PLACE ID']}
-               df = pd.read_csv(os.path.join(csv_dl_dir, latest_file), dtype_backend='pyarrow', dtype=dtypes)            
-               df['filedate'] = datetime.strptime(d, "%B %d,%Y")
+            zip_files = [f for f in os.listdir(csv_dl_dir) if f.endswith('.zip')]
+            latest_file = max(zip_files, key=lambda x: os.path.getctime(os.path.join(csv_dl_dir, x)))
+            latest_file_path = os.path.join(csv_dl_dir, latest_file)
 
-               final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
-            else:
-               print(f'Skipped empty csv: {latest_file}')
+            with zipfile.ZipFile(latest_file_path, 'r') as zip_ref:
+                # Only extract the specific file: '49664VOTER_STATE.csv'
+                if '49664VOTER_STATE.csv' in zip_ref.namelist():
+                    zip_ref.extract('49664VOTER_STATE.csv', csv_dl_dir)
+                else:
+                    print(f"File '49664VOTER_STATE.csv' not found in the zip archive.")
+
+            # Process the extracted '49664VOTER_STATE.csv' file
+            csv_file_path = os.path.join(csv_dl_dir, '49664VOTER_STATE.csv')
+            if os.path.exists(csv_file_path):
+                dtypes = {c: 'string' for c in ['ID_VOTER', 'PRECINCT']}
+                df = pd.read_csv(csv_file_path, dtype_backend='pyarrow', dtype=dtypes)
+                df['filedate'] = datetime.strptime(d, "%B %d,%Y")
+                final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
+
+                # Clean up the extracted CSV file after processing
+                os.remove(csv_file_path)
 
     # unindent two levels; out of the try/except block and out of the for loop of dates
     return final_df
