@@ -80,7 +80,7 @@ def get_selected_ev_date_dropdown(driver, officialness):
     print(f"Looking for dropdown with text: {dropdown_name}")
     wait = WebDriverWait(driver, 2)
     dropdown_container = wait.until(EC.visibility_of_element_located((By.XPATH, f"//div[contains(text(), '{dropdown_name}')]")))
-    dropdown_element = dropdown_container.find_element(By.XPATH, "./following-sibling::div//select[@id='selectedDate']")
+    dropdown_element = dropdown_container.find_element(By.XPATH, "./following-sibling::div//select[@id='electionDate']")
     select = Select(dropdown_element)
     return select
 
