@@ -153,7 +153,7 @@ def get_ev_turnout_data(driver, csv_dl_dir, origin_url, election, officialness):
 
                final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
             else:
-               print(f'Skipped empty csv: {latest_file}'
+               print(f'Skipped empty csv: {latest_file}')
 
     # unindent two levels; out of the try/except block and out of the for loop of dates
     return final_df
