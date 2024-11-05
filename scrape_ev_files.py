@@ -143,13 +143,17 @@ def get_ev_turnout_data(driver, csv_dl_dir, origin_url, election, officialness):
             # read that latest-downloaded csv into a df; append to results
             csv_files = [f for f in os.listdir(csv_dl_dir) if f.endswith('.csv')]
             latest_file = max(csv_files, key=lambda x: os.path.getctime(os.path.join(csv_dl_dir, x)))
+            
+            # check if csv is empty and skip if it is
+            if os.path.getsize(os.path.join(csv_dl_dir, latest_file)) > 0:
+               # not including all columns here; just the ones that seem like they might get mistaken for ints (but shouldn't be)
+               dtypes = {c:'string' for c in ['ID_VOTER', 'PRECINCT', 'POLL PLACE ID']}
+               df = pd.read_csv(os.path.join(csv_dl_dir, latest_file), dtype_backend='pyarrow', dtype=dtypes)            
+               df['filedate'] = datetime.strptime(d, "%B %d,%Y")
 
-            # not including all columns here; just the ones that seem like they might get mistaken for ints (but shouldn't be)
-            dtypes = {c:'string' for c in ['ID_VOTER', 'PRECINCT', 'POLL PLACE ID']}
-            df = pd.read_csv(os.path.join(csv_dl_dir, latest_file), dtype_backend='pyarrow', dtype=dtypes)            
-            df['filedate'] = datetime.strptime(d, "%B %d,%Y")
-
-            final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
+               final_df = pd.concat([final_df, df], axis=0, ignore_index=True)
+            else:
+               print(f'Skipped empty csv: {latest_file}'
 
     # unindent two levels; out of the try/except block and out of the for loop of dates
     return final_df
